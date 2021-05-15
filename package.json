@@ -1,0 +1,15 @@
+{
+    "name": "notionly",
+    "version": "1.0.0",
+    "description": "A discord bot for teams to power up their project's page on Notion with OCR and helpful collaboration tools",
+    "main": "app.js",
+    "scripts": {
+        "start": "node app.js"
+    },
+    "author": "Palash Johri",
+    "license": "MIT",
+    "dependencies": {
+        "discord.js": "^12.5.3",
+        "dotenv": "^9.0.2"
+    }
+}
