@@ -1,8 +1,10 @@
 "use strict";
 const Discord = require("discord.js");
+const client = new Discord.Client();
 const child = require("child_process");
 require("dotenv").config();
 const Firestore = require("@google-cloud/firestore");
+const vision = require("@google-cloud/vision");
 
 const db = new Firestore({
     projectId: process.env.PROJECT_ID,
@@ -10,13 +12,27 @@ const db = new Firestore({
 });
 const projectRef = db.collection("projects");
 
-const client = new Discord.Client();
+const currentProject = {
+    name: "",
+    token_v2: "",
+    pageLink: "",
+    admin: "",
+};
+
+const visionOCR = async(url) => {
+    const projectId = process.env.PROJECT_ID;
+    const keyFilename = process.env.KEY_FILE_PATH;
+    const client = new vision.ImageAnnotatorClient({ projectId, keyFilename });
+    const [result] = await client.documentTextDetection(url);
+    const fullTextAnnotation = result.fullTextAnnotation;
+    return fullTextAnnotation ? fullTextAnnotation.text : -1;
+};
 
 const runScript = async(params) => {
     const spawnSync = child.spawnSync;
     const python = spawnSync(
         "python", [
-            "./script.py",
+            __dirname + "/script.py",
             ...params,
             currentProject.pageLink,
             currentProject.token_v2,
@@ -25,15 +41,9 @@ const runScript = async(params) => {
             encoding: "utf8",
         }
     );
-    return python.stdout.slice(0, -1);
+    return python.stdout.slice(0, -1) || python.stderr;
 };
 
-const currentProject = {
-    name: "",
-    token_v2: "",
-    pageLink: "",
-    admin: "",
-};
 const commandPallette = {
     init: {
         setup: async(params) => {
@@ -61,10 +71,6 @@ const commandPallette = {
         } to ${currentProject.admin}!`;
             } else return "Project not found!";
         },
-        menu: async(params) => {
-            const user = params.pop();
-            return `Hello ${user}, this is the menu!`;
-        },
     },
     admin: {
         token: async(params) => {
@@ -84,25 +90,39 @@ const commandPallette = {
             return `The current page link is set to:\n\`${pl}\``;
         },
         lock: async(params) => {
+            params.push("lock");
+            await runScript(params);
             return "Page Locked!";
         },
-        history: async(params) => {
-            return "Science, yo! No, wait...";
+        unlock: async(params) => {
+            params.push("unlock");
+            await runScript(params);
+            return "Page Unlocked!";
         },
     },
     crud: {
         add: async(params) => {
-            return "Add used";
+            params.push("create");
+            return await runScript(params);
         },
         read: async(params) => {
             params.push("read");
             return await runScript(params);
         },
-        update: async() => {
-            return "Update used";
+        update: async(params) => {
+            params.push("update");
+            return await runScript(params);
         },
         delete: async(params) => {
             params.push("delete");
+            return await runScript(params);
+        },
+        img: async(params) => {
+            params.push("img");
+            return await runScript(params);
+        },
+        video: async(params) => {
+            params.push("video");
             return await runScript(params);
         },
     },
@@ -115,6 +135,9 @@ const commandPallette = {
         }\`\`\`` :
             "Please setup the project first!";
     },
+    menu: async() => {
+        return `Hello, this is the menu!`;
+    },
 };
 
 client.on("ready", async() => {
@@ -123,11 +146,6 @@ client.on("ready", async() => {
 
 client.on("message", async(msg) => {
     if (!msg.author.bot) {
-        if (msg.attachments.size > 0) {
-            msg.attachments.forEach((attachment) => {
-                quickstart(attachment.url);
-            });
-        }
         let command = msg.content.trim();
         let params = command.split(/\s+/);
         command = command.match(/\![a-zA-Z]+/);
@@ -138,7 +156,7 @@ client.on("message", async(msg) => {
             params.splice(params.indexOf(`!${command}`), 1) :
             (params = null);
         if (!params) {
-            command === "status" ?
+            command === "status" || command === "menu" ?
                 msg.channel.send(await commandPallette[command]()) :
                 msg.reply("Please add proper command parameters!");
         } else {
@@ -151,6 +169,23 @@ client.on("message", async(msg) => {
                     msg.channel.send(await commandPallette.admin[command](params)) :
                     msg.reply("You are not authorized, please request project admin.");
             } else if (commandPallette.crud.hasOwnProperty(command)) {
+                let textToParse = [];
+                const urls = msg.attachments.map((att) => att.url);
+                for (const url of urls) {
+                    let output = await visionOCR(url);
+                    if (output === -1) {
+                        msg.reply(
+                            "Unable to recognize any characters, please use a different input!"
+                        );
+                        break;
+                    }
+                    output.split("\n").forEach((line) => {
+                        textToParse.push(line.trim());
+                    });
+                }
+                if (textToParse) {
+                    params = [params.join(" "), ...textToParse];
+                }
                 currentProject.token_v2 && currentProject.pageLink ?
                     msg.channel.send(await commandPallette.crud[command](params)) :
                     msg.reply(
