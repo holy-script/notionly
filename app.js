@@ -1,5 +1,6 @@
 "use strict";
 const Discord = require("discord.js");
+const child = require("child_process");
 require("dotenv").config();
 const Firestore = require("@google-cloud/firestore");
 
@@ -10,6 +11,22 @@ const db = new Firestore({
 const projectRef = db.collection("projects");
 
 const client = new Discord.Client();
+
+const runScript = async(params) => {
+    const spawnSync = child.spawnSync;
+    const python = spawnSync(
+        "python", [
+            "./script.py",
+            ...params,
+            currentProject.pageLink,
+            currentProject.token_v2,
+            currentProject.name,
+        ], {
+            encoding: "utf8",
+        }
+    );
+    return python.stdout.slice(0, -1);
+};
 
 const currentProject = {
     name: "",
@@ -51,10 +68,20 @@ const commandPallette = {
     },
     admin: {
         token: async(params) => {
-            return `The current token value has been set!`;
+            const tk2 = params.join("");
+            currentProject.token_v2 = tk2;
+            await projectRef.doc(currentProject.name).update({
+                token_v2: tk2,
+            });
+            return `The current token value is set to: \n\`${tk2}\``;
         },
         page: async(params) => {
-            return `The current page link has been set!`;
+            const pl = params.join("");
+            currentProject.pageLink = pl;
+            await projectRef.doc(currentProject.name).update({
+                pageLink: pl,
+            });
+            return `The current page link is set to:\n\`${pl}\``;
         },
         lock: async(params) => {
             return "Page Locked!";
@@ -68,13 +95,15 @@ const commandPallette = {
             return "Add used";
         },
         read: async(params) => {
-            return "Read used";
+            params.push("read");
+            return await runScript(params);
         },
         update: async() => {
             return "Update used";
         },
-        delete: async() => {
-            return "Delete used";
+        delete: async(params) => {
+            params.push("delete");
+            return await runScript(params);
         },
     },
     status: async() => {
