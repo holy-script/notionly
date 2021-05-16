@@ -136,7 +136,7 @@ const commandPallette = {
             "Please setup the project first!";
     },
     menu: async() => {
-        return `Hello, this is the menu!`;
+        return `\`\`\`Hello, this is the menu! Valid commands include:\n1.!status - Used to check status of the current project\n2. !menu - To view command list\n3. !setup *Project Name* - To start up a project and store it on Firebase\n4. !load *Project Name* - To load a project from Firebase if it exists\n5. !token *token_v2* - To set the token value from the user's Notion cookie\n6. !page *page link* - To set the link of publicly shared and untitled page in the project\n7. !lock *label* - To lock the page from any edits\n8. !unlock *label* - To unlock the page\n9. !add *label* *img attachment* - To add a specified block to the project.\n10. !read *query string* - To get the hyperlink of the indexed block of the page.\n11. !update *query string* *img attachment* - To set text of queried block to image's text\n12. !delete *query string* - To delete the indexed block of the page.\n13. !img *url* - To add the specified image to the project\n14. !video *url* - To add the specified video to the project\n\`\`\``;
     },
 };
 
